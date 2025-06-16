@@ -1,0 +1,278 @@
+# Répertoire de travail
+
+rm(list = ls())
+
+
+setwd("Ton dossier")
+.libPaths("Package")
+
+# install.packages("dplyr")
+# install.packages("readxl")
+# install.packages("openxlsx")
+# install.packages("stringr")
+# install.packages("writexl")
+# install.packages("readr")
+
+# Activation des packages utiles
+
+library(dplyr)
+library(readxl)
+library(openxlsx)
+library(stringr)
+
+library(dplyr)
+library(readr)
+library(stringr)
+library(writexl)
+
+
+
+# ---------------------
+# 1. lecture fichiers base
+# ---------------------
+
+
+
+axe <- read_excel("Données/Axe activités LAC.xlsx")
+
+export111Bis <- read_excel("Données/Export 111 bis.xlsx")
+
+export111 <- read_excel("Données/Export 111.xlsx")
+
+organisation <- read_excel("Données/Organisation 111.xlsx", skip = 2)
+
+
+
+
+
+
+# -----------
+
+
+
+
+
+
+# Nettoyage des noms de colonnes pour faciliter la manipulation
+names(export111Bis)[6] <- "EFFECTIF"
+
+# Renommer proprement les colonnes (sans doublon)
+names(export111) <- c("PERIODE", "MOIS", "Id_Com", "RUBRIQUE", "Code_Art", "VOLUME")
+
+# Remplacement du "." par "," dans les colonnes numériques
+export111Bis <- export111Bis %>%
+  mutate(EFFECTIF = str_replace(EFFECTIF, "\\.", ","))
+
+export111 <- export111 %>%
+  mutate(VOLUME = str_replace(VOLUME, "\\.", ","))
+
+# ---- TABLE MOIS_PERIODE ----
+mois_periode <- export111Bis %>%
+  select(MOIS = 2, PERIODE = 1) %>%
+  distinct()
+
+# ---- TABLE ARTICLE (corrigée avec #Code_Fam) ----
+article <- axe %>%
+  select(
+    Code_Art = `GEN4,ACTI`,
+    Nom_Art = `ALIAS4,ACTI`,
+    Code_Fam = `GEN3,ACTI`
+  ) %>%
+  distinct()
+
+
+# ---- TABLE FAMILLE (corrigée avec #Code_Categ) ----
+famille <- axe %>%
+  select(
+    Code_Fam = `GEN3,ACTI`,
+    Nom_Fam = `ALIAS3,ACTI`,
+    Code_Categ = `GEN2,ACTI`
+  ) %>%
+  distinct()
+
+
+# ---- TABLE CATEGORIE (corrigée avec #Code_Rayon) ----
+categorie <- axe %>%
+  select(
+    Code_Categ = `GEN2,ACTI`,
+    Nom_Categ = `ALIAS2,ACTI`,
+    Code_Rayon = `GEN1,ACTI`
+  ) %>%
+  distinct()
+
+
+
+# ---- TABLE RAYON ----
+rayon <- axe %>%
+  select(Code_Rayon = `GEN1,ACTI`, Nom_Rayon = `ALIAS1,ACTI`) %>%
+  distinct()
+
+# ---- TABLE INFORMER ----
+
+
+# Renommer proprement les colonnes de export111
+names(export111) <- c("PERIODE", "MOIS", "Id_Com", "RUBRIQUE", "Code_Art", "VOLUME")
+
+# Remplacer le point décimal par une virgule pour la colonne VOLUME
+export111 <- export111 %>%
+  mutate(VOLUME = str_replace(VOLUME, "\\.", ","))
+
+# Extraire les colonnes nécessaires pour la partie volume
+vol <- export111 %>%
+  select(PERIODE, MOIS, Code_Art, Id_Com, VOLUME)
+
+# Renommer proprement les colonnes de export111Bis
+names(export111Bis) <- c("PERIODE", "MOIS", "Id_Com", "Code_Art", "RUBRIQUE", "EFFECTIF")
+
+# Remplacer le point décimal par une virgule pour la colonne EFFECTIF
+export111Bis <- export111Bis %>%
+  mutate(EFFECTIF = str_replace(EFFECTIF, "\\.", ","))
+
+# Extraire les colonnes nécessaires pour la partie effectif
+eff <- export111Bis %>%
+  select(PERIODE, MOIS, Code_Art, Id_Com, EFFECTIF)
+
+# Fusionner les deux tables (volumes et effectifs)
+informer <- full_join(eff, vol, by = c("PERIODE", "MOIS", "Code_Art", "Id_Com")) %>%
+  mutate(
+    EFFECTIF = ifelse(is.na(EFFECTIF), "", EFFECTIF),
+    VOLUME = ifelse(is.na(VOLUME), "", VOLUME)
+  )
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+# 1. Renommer proprement les colonnes
+names(organisation) <- c("Entite_Mere", "Entite_Fille", "Lib_Fille", "Op", "Carac1", "Carac2", "Carac3")
+
+# 2. Créer une table complète des relations (arbre de rattachement)
+relations <- organisation %>%
+  select(Entite_Mere, Entite_Fille, Lib_Fille)
+
+# 3. Construire la hiérarchie à partir des entités "de base" (CC, CCCP)
+# On part de tous les établissements "de base" (où Carac1 ou Carac2 ou Carac3 contient CC ou CCCP)
+
+etablissements <- organisation %>%
+  filter(Carac1 %in% c("CC", "CCCP") | Carac2 %in% c("CC", "CCCP") | Carac3 %in% c("CC", "CCCP")) %>%
+  select(Id_Com = Entite_Fille, Lib_Com = Lib_Fille, Groupe = Entite_Mere)
+
+
+# ---- TABLE Groupes ----
+
+# 4. Associer les Groupes
+groupes <- organisation %>%
+  filter(Entite_Fille %in% etablissements$Groupe) %>%
+  select(Id_Groupe = Entite_Fille, Lib_Groupe = Lib_Fille, Zone = Entite_Mere)
+
+# ---- TABLE Zones ----
+
+# 5. Associer les Zones
+zones <- organisation %>%
+  filter(Entite_Fille %in% groupes$Zone) %>%
+  select(Id_Zone = Entite_Fille, Lib_Zone = Lib_Fille, Region = Entite_Mere)
+
+# ---- TABLE Régions ----
+
+# 6. Associer les Régions
+regions <- organisation %>%
+  filter(Entite_Fille %in% zones$Region) %>%
+  select(Id_Region = Entite_Fille, Lib_Region = Lib_Fille, France = Entite_Mere)
+
+
+
+# 7. Associer la France (total national)
+france <- organisation %>%
+  filter(Entite_Fille %in% regions$France) %>%
+  select(Id_France = Entite_Fille, Lib_France = Lib_Fille)
+
+# 8. Nettoyage et suppression des doublons
+table_france <- france %>% distinct()
+table_region <- regions %>%
+  select(Id_Region, Lib_Region, Id_France = France) %>%
+  distinct()
+table_zone <- zones %>%
+  select(Id_Zone, Lib_Zone, Id_Region = Region) %>%
+  distinct()
+table_groupe <- groupes %>%
+  select(Id_Groupe, Lib_Groupe, Id_Zone = Zone) %>%
+  distinct()
+
+
+
+# 10. Table COMMERCE : établissements de type CC ou CCCP
+library(dplyr)
+library(writexl)
+
+# 10. Table COMMERCE avec type et statut
+commerce <- organisation %>%
+  filter(
+    Carac1 %in% c("CC", "CCCP") |
+      Carac2 %in% c("CC", "CCCP") |
+      Carac3 %in% c("CC", "CCCP")
+  ) %>%
+  mutate(
+    Type_commerce = case_when(
+      Carac1 %in% c("CC", "CCCP") ~ Carac1,
+      Carac2 %in% c("CC", "CCCP") ~ Carac2,
+      Carac3 %in% c("CC", "CCCP") ~ Carac3,
+      TRUE ~ NA_character_
+    ),
+    Statut_commerce = case_when(
+      Carac1 == "EFERM" ~ "EFERM",
+      Carac2 == "EFERM" ~ "EFERM",
+      Carac3 == "EFERM" ~ "EFERM",
+      TRUE ~ NA_character_
+    )
+  ) %>%
+  select(
+    Id_Com = Entite_Fille,
+    Lib_Com = Lib_Fille,
+    Id_Groupe = Entite_Mere,
+    Type_commerce,
+    Statut_commerce
+  ) %>%
+  distinct()
+
+
+
+write_xlsx(mois_periode, "Output/MOIS_PERIODE.xlsx")
+write_xlsx(article, "Output/ARTICLE.xlsx")
+write_xlsx(famille, "Output/FAMILLE.xlsx")
+write_xlsx(categorie, "Output/CATEGORIE.xlsx")
+write_xlsx(rayon, "Output/RAYON.xlsx")
+write_xlsx(informer, "Output/INFORMER.xlsx")
+write_xlsx(commerce, "Output/COMMERCE.xlsx")
+write_xlsx(groupes, "Output/GROUPE.xlsx")
+write_xlsx(zones, "Output/ZONE.xlsx")
+write_xlsx(regions, "Output/REGION.xlsx")
+write_xlsx(france, "Output/FRANCE.xlsx")
+
