@@ -3,7 +3,7 @@
 rm(list = ls())
 
 
-setwd("Ton dossier")
+setwd("Votre Dossier courant")
 .libPaths("Package")
 
 # install.packages("dplyr")
@@ -19,8 +19,6 @@ library(dplyr)
 library(readxl)
 library(openxlsx)
 library(stringr)
-
-library(dplyr)
 library(readr)
 library(stringr)
 library(writexl)
@@ -40,7 +38,6 @@ export111Bis <- read_excel("Données/Export 111 bis.xlsx")
 export111 <- read_excel("Données/Export 111.xlsx")
 
 organisation <- read_excel("Données/Organisation 111.xlsx", skip = 2)
-
 
 
 
@@ -143,34 +140,6 @@ informer <- full_join(eff, vol, by = c("PERIODE", "MOIS", "Code_Art", "Id_Com"))
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 # 1. Renommer proprement les colonnes
 names(organisation) <- c("Entite_Mere", "Entite_Fille", "Lib_Fille", "Op", "Carac1", "Carac2", "Carac3")
 
@@ -207,14 +176,14 @@ regions <- organisation %>%
   filter(Entite_Fille %in% zones$Region) %>%
   select(Id_Region = Entite_Fille, Lib_Region = Lib_Fille, France = Entite_Mere)
 
+# ---- TABLE France ----
 
 
-# 7. Associer la France (total national)
 france <- organisation %>%
   filter(Entite_Fille %in% regions$France) %>%
   select(Id_France = Entite_Fille, Lib_France = Lib_Fille)
 
-# 8. Nettoyage et suppression des doublons
+
 table_france <- france %>% distinct()
 table_region <- regions %>%
   select(Id_Region, Lib_Region, Id_France = France) %>%
@@ -228,11 +197,9 @@ table_groupe <- groupes %>%
 
 
 
-# 10. Table COMMERCE : établissements de type CC ou CCCP
-library(dplyr)
-library(writexl)
 
-# 10. Table COMMERCE avec type et statut
+# ---- TABLE Commerce ----
+
 commerce <- organisation %>%
   filter(
     Carac1 %in% c("CC", "CCCP") |
@@ -262,6 +229,14 @@ commerce <- organisation %>%
   ) %>%
   distinct()
 
+
+
+
+
+
+
+
+# Exportation des 11 tables au format xlsx
 
 
 write_xlsx(mois_periode, "Output/MOIS_PERIODE.xlsx")
